@@ -39,6 +39,11 @@ BFS_Result Graph::BFS(Vertex* startVertex, Vertex* finalVertex) {
 
   list<Vertex*> queue;
 
+  if (startVertex == finalVertex) {
+    previous[startVertex] = startVertex;
+    return {previous, true};
+  }
+
   visited[startVertex] = true;
   queue.push_back(startVertex);
 
@@ -209,9 +214,8 @@ int main(void) {
     auto result = graph.BFS(actor1, actor2);
     cout << "BFS took " << timeDiff() << " milliseconds" << endl;
 
-    if (result.found)
-      cout << "Searched " << result.parent.size() << " nodes" << endl;
-    else {
+    cout << "Searched " << result.parent.size() << " nodes" << endl;
+    if (!result.found) {
       cout << "No path found" << endl;
       goto PROPMT_1;
     }
