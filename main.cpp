@@ -1,12 +1,9 @@
-#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <iostream>
 #include <list>
-#include <map>
-#include <sstream>
-#include <string>
-#include <vector>
+#include "robin_hood.h"
+
 using namespace std;
 
 struct Vertex {
@@ -16,13 +13,13 @@ struct Vertex {
 };
 
 struct BFS_Result {
-  unordered_map<Vertex*, Vertex*> parent;
+  robin_hood::unordered_map<Vertex*, Vertex*> parent;
   bool found;
 };
 
 class Graph {
  private:
-  unordered_map<Vertex*, list<Vertex*>> adjLists;
+  robin_hood::unordered_map<Vertex*, list<Vertex*>> adjLists;
 
  public:
   void addEdge(Vertex* src, Vertex* dest);
@@ -37,8 +34,8 @@ void Graph::addEdge(Vertex* src, Vertex* dest) {
 
 // BFS algorithm
 BFS_Result Graph::BFS(Vertex* startVertex, Vertex* finalVertex) {
-  unordered_map<Vertex*, Vertex*> previous;
-  unordered_map<Vertex*, bool> visited;
+  robin_hood::unordered_map<Vertex*, Vertex*> previous;
+  robin_hood::unordered_map<Vertex*, bool> visited;
 
   list<Vertex*> queue;
 
@@ -70,7 +67,7 @@ ifstream loadFile(string fileName) {
   return ifs;
 }
 
-typedef unordered_map<string, Vertex*> VertexMap;
+typedef robin_hood::unordered_map<string, Vertex*> VertexMap;
 
 void parseMovies(ifstream file, VertexMap& movies) {
   int tabIndex, nextTabIndex = 0;
