@@ -15,19 +15,18 @@ struct Vertex{
   vector<string> references;
 };
 
-class Graph {
-  map<Vertex*, list<Vertex*>> adjLists;
-
-public:
-  Graph();
-  void addEdge(Vertex* src, Vertex* dest);
-  map<Vertex*, Vertex*> BFS(Vertex* startVertex, Vertex* finalVertex);
+struct BFS_Result {
+  unordered_map<Vertex*, Vertex*> parent;
+  bool found;
 };
 
-// Create a graph with given vertices,
-// and maintain an adjacency list
-Graph::Graph() {
-}
+class Graph {
+private:
+  unordered_map<Vertex*, list<Vertex*>> adjLists;
+public:
+  void addEdge(Vertex* src, Vertex* dest);
+  BFS_Result BFS(Vertex* startVertex, Vertex* finalVertex);
+};
 
 // Add edges to the graph
 void Graph::addEdge(Vertex* src, Vertex* dest) {
@@ -36,9 +35,9 @@ void Graph::addEdge(Vertex* src, Vertex* dest) {
 }
 
 // BFS algorithm
-map<Vertex*, Vertex*> Graph::BFS(Vertex* startVertex, Vertex* finalVertex) {
-	map<Vertex*, Vertex*> previous;
-  map<Vertex*, bool> visited;
+BFS_Result Graph::BFS(Vertex* startVertex, Vertex* finalVertex) {
+	unordered_map<Vertex*, Vertex*> previous;
+  unordered_map<Vertex*, bool> visited;
   
   list<Vertex*> queue;
 
@@ -56,34 +55,25 @@ map<Vertex*, Vertex*> Graph::BFS(Vertex* startVertex, Vertex* finalVertex) {
       if (!visited[adjVertex]) {
 				previous[adjVertex] = currVertex;
 				if(adjVertex == finalVertex)
-					return previous;
+					return BFS_Result{previous, true};
         visited[adjVertex] = true;
         queue.push_back(adjVertex);
       }
     }
   }
-	return previous;
+	return BFS_Result{previous, false};
 }
 
 ifstream loadFile(string fileName) {
-  cout << "Loading file " << fileName << endl;
-  std::ifstream ifs(fileName);
+  ifstream ifs(fileName);
   return ifs;
 }
 
-int main(void) {
-  //Globals (heavily reused)
-  string line;
-  vector<Vertex*> actors;
-  map<string, Vertex*> movies;
-  ifstream file;
-  chrono::_V2::system_clock::time_point start, stop;
-  std::chrono::milliseconds elapsed;
-  int tabIndex, nextTabIndex;
+typedef unordered_map<string, Vertex*> VertexMap;
 
-  file = loadFile("title.basics.tsv");
-  cout << "Parsing movies..." << endl;
-  start = chrono::high_resolution_clock::now();
+void parseMovies(ifstream file, VertexMap& movies) {
+  int tabIndex, nextTabIndex = 0;
+  string line;
   getline(file, line); //skip first line
   TITLE_LOOP:while(getline(file, line)) {
     tabIndex = 0;
@@ -101,13 +91,11 @@ int main(void) {
       segments[2]
     };
   }
-  stop = chrono::high_resolution_clock::now();
-  elapsed = chrono::duration_cast<chrono::milliseconds>(stop - start);
-  cout << "Loaded " << movies.size() << " movies in " << elapsed.count() << " milliseconds" << endl;
+}
 
-  file = loadFile("name.basics.tsv");
-  cout << "Parsing actors..." << endl;
-  start = chrono::high_resolution_clock::now();
+void parseActors(ifstream file, VertexMap& actors, VertexMap& movies) {
+  int tabIndex, nextTabIndex = 0;
+  string line;
   getline(file, line); //skip first line
   NAME_LOOP:while(getline(file, line)) {
     tabIndex = 0;
@@ -134,50 +122,106 @@ int main(void) {
       }
       END:tabIndex = nextTabIndex + 1;
     }
+    if(segments[5] == "\\N")
+      goto NAME_LOOP;
     vector<string> actorMovies;
     tabIndex = 0;
     nextTabIndex = 0;
+    string movieId;
     while (nextTabIndex != -1) {
       nextTabIndex = segments[5].find(',', tabIndex);
-      actorMovies.push_back(segments[5].substr(tabIndex, nextTabIndex - tabIndex));
+      movieId = segments[5].substr(tabIndex, nextTabIndex - tabIndex);
+      if(movies.count(movieId) > 0)
+        actorMovies.push_back(movieId);
       tabIndex = nextTabIndex + 1;
     }
-    actors.push_back(new Vertex{
+    if(actorMovies.size() == 0)
+      goto NAME_LOOP;
+    auto uniqueEnding = [](int i) { return i == 0 ? "" :  " (" +  to_string(i) + ")"; };
+    int i = 0;
+    while(actors.count(segments[1] + uniqueEnding(i)) > 0)
+      i++;
+    segments[1] += uniqueEnding(i);
+    actors[segments[1]] = new Vertex{
       segments[0],
       segments[1],
       actorMovies
-    });
+    };
   }
-  stop = chrono::high_resolution_clock::now();
-  elapsed = chrono::duration_cast<chrono::milliseconds>(stop - start);
-  cout << "Loaded " << actors.size() << " actors in " << elapsed.count() << " milliseconds" << endl;
+}
+
+
+int main(void) {
+  VertexMap actors, movies;
+  int tabIndex, nextTabIndex;
+
+  chrono::_V2::system_clock::time_point start;
+  auto startTime = [&start]() { start = chrono::high_resolution_clock::now(); };
+  auto timeDiff = [&start]() { return chrono::duration_cast<chrono::milliseconds>(chrono::high_resolution_clock::now() - start).count(); };
+
+  //parse movies
+  cout << "Parsing movies..." << endl;
+  startTime();
+  parseMovies(loadFile("title.basics.tsv"), movies);
+  cout << "Loaded " << movies.size() << " movies in " << timeDiff() << " milliseconds" << endl;
+
+  //parse actors
+  cout << "Parsing actors..." << endl;
+  startTime();
+  parseActors(loadFile("name.basics.tsv"), actors, movies);
+  cout << "Loaded " << actors.size() << " actors in " << timeDiff() << " milliseconds" << endl;
 
   //create graph
   Graph graph;
   cout << "Creating graph" << endl;
-  start = chrono::high_resolution_clock::now();
-  for(Vertex* actor : actors){
-    for(string movieId : actor->references){
-      if(movies.count(movieId) == 1)
-        graph.addEdge(actor, movies[movieId]);
+  startTime();
+  for(auto [_, actor] : actors)
+    for(string movieId : actor->references)
+      graph.addEdge(actor, movies[movieId]);
+  cout << "Created graph in " << timeDiff() << " milliseconds" << endl;
+
+
+  // running BFS
+  bool running = true;
+  while (running) {
+    string actorName, actor2Name;
+    PROPMT_1: actorName = "";
+    cout << "Enter actor name: ";
+    getline(cin, actorName);
+    if (actors.count(actorName) == 0) {
+      cout << "Actor not found" << endl;
+      goto PROPMT_1;
     }
+    PROPMT_2: actor2Name = ""; 
+    cout << "Enter second actor name: ";
+    getline(cin, actor2Name);
+    if (actors.count(actor2Name) == 0) {
+      cout << "Actor not found" << endl;
+      goto PROPMT_2;
+    }
+    auto actor1 = actors[actorName];
+    auto actor2 = actors[actor2Name];
+    cout << "Starting BFS..." << endl;
+    startTime();
+    auto result = graph.BFS(actor1, actor2);
+    cout << "BFS took " << timeDiff() << " milliseconds" << endl;
+
+    if (result.found)
+      cout << "Searched " << result.parent.size() << " nodes" << endl;
+    else {
+      cout << "No path found" << endl;
+      goto PROPMT_1;
+    }
+
+    cout << "Printing results" << endl;
+    cout << "----------------" << endl;
+    list < Vertex * > path;
+    path.push_back(actor2);
+    while (path.front() != actor1)
+      path.push_front(result.parent[path.front()]);
+    for (Vertex * v: path)
+      cout << (v->id[0] == 't' ? "Movie" : "Actor") << "|" << v->name << endl;
+    cout << "----------------" << endl;
   }
-  stop = chrono::high_resolution_clock::now();
-  cout << "Created graph in " << chrono::duration_cast<chrono::milliseconds>(stop - start).count() << " milliseconds" << endl;
-
-  cout << "BFS" << endl;
-  start = chrono::high_resolution_clock::now();
-  map<Vertex*, Vertex *> previous = graph.BFS(actors[111], actors[114]);
-  stop = chrono::high_resolution_clock::now();
-  cout << "BFS took " << chrono::duration_cast<chrono::milliseconds>(stop - start).count() << " milliseconds" << endl;
-
-  cout << "Printing results" << endl;
-  cout << "----------------" << endl;
-	list<Vertex*> path;
-  path.push_back(actors[114]);
-  while(path.front() != actors[111])
-    path.push_front(previous[path.front()]);
-  for(Vertex* v : path)
-    cout << (v->id[0] == 't' ? "Movie" : "Actor") << "|" << v->name << endl;
   return 0;
 }

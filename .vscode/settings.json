@@ -1,0 +1,22 @@
+{
+  "files.associations": {
+    "new": "cpp",
+    "chrono": "cpp",
+    "iostream": "cpp",
+    "cwchar": "cpp",
+    "list": "cpp",
+    "vector": "cpp",
+    "exception": "cpp",
+    "fstream": "cpp",
+    "functional": "cpp",
+    "initializer_list": "cpp",
+    "iosfwd": "cpp",
+    "istream": "cpp",
+    "ostream": "cpp",
+    "ratio": "cpp",
+    "sstream": "cpp",
+    "tuple": "cpp",
+    "type_traits": "cpp",
+    "utility": "cpp"
+  }
+}
