@@ -7,9 +7,7 @@
 #include <map>
 #include <sstream>
 #include <chrono>
-
 using namespace std;
-// #include "kernels/cuda.cuh"
 
 struct Vertex{
   string id;
@@ -67,30 +65,13 @@ map<Vertex*, Vertex*> Graph::BFS(Vertex* startVertex, Vertex* finalVertex) {
 	return previous;
 }
 
-vector<string> split(string str, char delimiter) {
-  stringstream ss(str);
-  string segment;
-  vector<string> segments;
-  while(getline(ss, segment, delimiter)){
-    segments.push_back(segment);
-  }
-  return segments;
-}
-
 ifstream loadFile(string fileName) {
   cout << "Loading file " << fileName << endl;
   std::ifstream ifs(fileName);
   return ifs;
 }
 
-bool IsActor (string s) {
-  return s == "actor" || s == "actress";
-}
-
-
 int main(void) {
-
-
   //Globals (heavily reused)
   string line;
   vector<Vertex*> actors;
