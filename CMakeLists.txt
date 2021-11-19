@@ -13,10 +13,10 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/title.basics.tsv
 enable_language(CUDA)
 
 add_executable(cuda_test main.cpp)
-add_subdirectory(kernels)
+# add_subdirectory(kernels)
 
-set_target_properties(cuda_test PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-target_link_libraries(cuda_test kernels)
+# set_target_properties(cuda_test PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+# target_link_libraries(cuda_test kernels)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

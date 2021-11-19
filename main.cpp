@@ -6,6 +6,7 @@
 #include <string>
 #include <map>
 #include <sstream>
+#include <chrono>
 
 using namespace std;
 // #include "kernels/cuda.cuh"
@@ -18,7 +19,6 @@ struct Vertex{
 
 class Graph {
   map<Vertex*, list<Vertex*>> adjLists;
-  map<Vertex*, bool> visited;
 
 public:
   Graph();
@@ -40,7 +40,8 @@ void Graph::addEdge(Vertex* src, Vertex* dest) {
 // BFS algorithm
 map<Vertex*, Vertex*> Graph::BFS(Vertex* startVertex, Vertex* finalVertex) {
 	map<Vertex*, Vertex*> previous;
-
+  map<Vertex*, bool> visited;
+  
   list<Vertex*> queue;
 
   visited[startVertex] = true;
@@ -88,72 +89,114 @@ bool IsActor (string s) {
 
 
 int main(void) {
-	// printf("Hello CPP!\n");
-  // int i = wrapper(4);
-	// printf("%d\n", i);
 
+
+  //Globals (heavily reused)
   string line;
   vector<Vertex*> actors;
   map<string, Vertex*> movies;
+  ifstream file;
+  chrono::_V2::system_clock::time_point start, stop;
+  std::chrono::milliseconds elapsed;
+  int tabIndex, nextTabIndex;
 
-  //parse title.basics.tsv
-  ifstream title_basics = loadFile("title.basics.tsv");
-  int max = 100000;
-  while(getline(title_basics, line)){
-    vector<string> segments = split(line, '\t');
-    if(segments[1] == "movie"){
-      Vertex* movie = new Vertex{
-        .id = segments[0],
-        .name = segments[2]
-      };
-      movies[movie->id] = movie;
+  file = loadFile("title.basics.tsv");
+  cout << "Parsing movies..." << endl;
+  start = chrono::high_resolution_clock::now();
+  getline(file, line); //skip first line
+  TITLE_LOOP:while(getline(file, line)) {
+    tabIndex = 0;
+    nextTabIndex = 0;
+    string segments[3];
+    for(int i = 0; i < 3; i++) {
+      nextTabIndex = line.find('\t', tabIndex);
+      segments[i] = line.substr(tabIndex, nextTabIndex - tabIndex);
+      if(i==1 && segments[i] != "movie")
+        goto TITLE_LOOP;
+      tabIndex = nextTabIndex + 1;
     }
-    max--;
+    movies[segments[0]] = new Vertex{
+      segments[0],
+      segments[2]
+    };
   }
-  cout << "Finished parsing title.basics.tsv" << endl;
+  stop = chrono::high_resolution_clock::now();
+  elapsed = chrono::duration_cast<chrono::milliseconds>(stop - start);
+  cout << "Loaded " << movies.size() << " movies in " << elapsed.count() << " milliseconds" << endl;
 
-  //parse name.basics.tsv
-  ifstream name_basics = loadFile("name.basics.tsv");
-  max = 100000;
-  while(getline(name_basics, line)){
-    vector<string> segments = split(line, '\t');
-    vector<string> v = split(segments[4], ',');
-    if(segments.size() >= 6 && any_of(v.begin(), v.end(), IsActor)){
-      Vertex* actor = new Vertex{
-        .id = segments[0],
-        .name = segments[1],
-        .references = split(segments[5], ',')
-      };
-      actors.push_back(actor);
+  file = loadFile("name.basics.tsv");
+  cout << "Parsing actors..." << endl;
+  start = chrono::high_resolution_clock::now();
+  getline(file, line); //skip first line
+  NAME_LOOP:while(getline(file, line)) {
+    tabIndex = 0;
+    nextTabIndex = 0;
+    string segments[6];
+    for(int i = 0; i < 6; i++) {
+      nextTabIndex = line.find('\t', tabIndex);
+      if (i != 2 && i != 3) { //skip years
+        segments[i] = line.substr(tabIndex, nextTabIndex - tabIndex);
+        //handle roles
+        if (i == 4) {
+          int tabIndexRole = 0;
+          int nextTabIndexRole = 0;
+          string role;
+          while(nextTabIndexRole != -1) {
+            nextTabIndexRole = segments[i].find(',', tabIndexRole);
+            role = segments[i].substr(tabIndexRole, nextTabIndexRole - tabIndexRole);
+            if(role == "actor" || role == "actress")
+              goto END;
+            tabIndexRole = nextTabIndexRole + 1;
+          }
+          goto NAME_LOOP;
+        }
+      }
+      END:tabIndex = nextTabIndex + 1;
     }
-    max--;
+    vector<string> actorMovies;
+    tabIndex = 0;
+    nextTabIndex = 0;
+    while (nextTabIndex != -1) {
+      nextTabIndex = segments[5].find(',', tabIndex);
+      actorMovies.push_back(segments[5].substr(tabIndex, nextTabIndex - tabIndex));
+      tabIndex = nextTabIndex + 1;
+    }
+    actors.push_back(new Vertex{
+      segments[0],
+      segments[1],
+      actorMovies
+    });
   }
-  cout << "Finished parsing name.basics.tsv" << endl;
+  stop = chrono::high_resolution_clock::now();
+  elapsed = chrono::duration_cast<chrono::milliseconds>(stop - start);
+  cout << "Loaded " << actors.size() << " actors in " << elapsed.count() << " milliseconds" << endl;
 
   //create graph
   Graph graph;
-
   cout << "Creating graph" << endl;
+  start = chrono::high_resolution_clock::now();
   for(Vertex* actor : actors){
     for(string movieId : actor->references){
       if(movies.count(movieId) == 1)
         graph.addEdge(actor, movies[movieId]);
     }
   }
-  cout << "Finished creating graph" << endl;
+  stop = chrono::high_resolution_clock::now();
+  cout << "Created graph in " << chrono::duration_cast<chrono::milliseconds>(stop - start).count() << " milliseconds" << endl;
 
   cout << "BFS" << endl;
+  start = chrono::high_resolution_clock::now();
   map<Vertex*, Vertex *> previous = graph.BFS(actors[111], actors[114]);
-  cout << "Finished BFS" << endl;
+  stop = chrono::high_resolution_clock::now();
+  cout << "BFS took " << chrono::duration_cast<chrono::milliseconds>(stop - start).count() << " milliseconds" << endl;
 
   cout << "Printing results" << endl;
+  cout << "----------------" << endl;
 	list<Vertex*> path;
   path.push_back(actors[114]);
-  while(path.front() != actors[111]) {
+  while(path.front() != actors[111])
     path.push_front(previous[path.front()]);
-  }
-  for(Vertex* v : path) {
-    cout << v->name << endl;
-  }
+  for(Vertex* v : path)
+    cout << (v->id[0] == 't' ? "Movie" : "Actor") << "|" << v->name << endl;
   return 0;
 }
