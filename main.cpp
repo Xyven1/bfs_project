@@ -9,31 +9,18 @@ using namespace std;
 struct Vertex {
   string id;
   string name;
-  vector<string> references;
+  vector<Vertex*> references;
 };
+
+typedef robin_hood::unordered_map<string, Vertex*> VertexMap;
 
 struct BFS_Result {
   robin_hood::unordered_map<Vertex*, Vertex*> parent;
   bool found;
 };
 
-class Graph {
- private:
-  robin_hood::unordered_map<Vertex*, list<Vertex*>> adjLists;
-
- public:
-  void addEdge(Vertex* src, Vertex* dest);
-  BFS_Result BFS(Vertex* startVertex, Vertex* finalVertex);
-};
-
-// Add edges to the graph
-void Graph::addEdge(Vertex* src, Vertex* dest) {
-  adjLists[src].push_back(dest);
-  adjLists[dest].push_back(src);
-}
-
 // BFS algorithm
-BFS_Result Graph::BFS(Vertex* startVertex, Vertex* finalVertex) {
+BFS_Result BFS(Vertex* startVertex, Vertex* finalVertex) {
   robin_hood::unordered_map<Vertex*, Vertex*> previous;
   robin_hood::unordered_map<Vertex*, bool> visited;
 
@@ -54,7 +41,7 @@ BFS_Result Graph::BFS(Vertex* startVertex, Vertex* finalVertex) {
     queue.pop_front();
 
     // iterates through the adjacency list of the current vertex
-    for (auto const& adjVertex : adjLists[currVertex]) {
+    for (auto const& adjVertex : currVertex->references) {
       if (!visited[adjVertex]) {
         previous[adjVertex] = currVertex;
         if (adjVertex == finalVertex)
@@ -71,8 +58,6 @@ ifstream loadFile(string fileName) {
   ifstream ifs(fileName);
   return ifs;
 }
-
-typedef robin_hood::unordered_map<string, Vertex*> VertexMap;
 
 void parseMovies(ifstream file, VertexMap& movies) {
   int tabIndex, nextTabIndex = 0;
@@ -128,7 +113,7 @@ NAME_LOOP:
     }
     if (segments[5] == "\\N")
       goto NAME_LOOP;
-    vector<string> actorMovies;
+    vector<Vertex*> actorMovies;
     tabIndex = 0;
     nextTabIndex = 0;
     string movieId;
@@ -136,7 +121,7 @@ NAME_LOOP:
       nextTabIndex = segments[5].find(',', tabIndex);
       movieId = segments[5].substr(tabIndex, nextTabIndex - tabIndex);
       if (movies.count(movieId) > 0)
-        actorMovies.push_back(movieId);
+        actorMovies.push_back(movies[movieId]);
       tabIndex = nextTabIndex + 1;
     }
     if (actorMovies.size() == 0)
@@ -149,6 +134,8 @@ NAME_LOOP:
       i++;
     segments[1] += uniqueEnding(i);
     actors[segments[1]] = new Vertex{segments[0], segments[1], actorMovies};
+    for(auto const& movie : actorMovies)
+      movie->references.push_back(actors[segments[1]]);
   }
 }
 
@@ -178,15 +165,6 @@ int main(void) {
   cout << "Loaded " << actors.size() << " actors in " << timeDiff()
        << " milliseconds" << endl;
 
-  // create graph
-  Graph graph;
-  cout << "Creating graph" << endl;
-  startTime();
-  for (auto [_, actor] : actors)
-    for (string movieId : actor->references)
-      graph.addEdge(actor, movies[movieId]);
-  cout << "Created graph in " << timeDiff() << " milliseconds" << endl;
-
   // running BFS
   bool running = true;
   while (running) {
@@ -211,7 +189,7 @@ int main(void) {
     auto actor2 = actors[actor2Name];
     cout << "Starting BFS..." << endl;
     startTime();
-    auto result = graph.BFS(actor1, actor2);
+    auto result = BFS(actor1, actor2);
     cout << "BFS took " << timeDiff() << " milliseconds" << endl;
 
     cout << "Searched " << result.parent.size() << " nodes" << endl;
